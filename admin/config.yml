@@ -1,0 +1,31 @@
+backend:
+  name: github
+  repo: eito1011-JP/Handbook  # あなたのGitHubユーザー名/リポジトリ名
+  branch: main  # メインブランチ
+  # GitHub認証を使用
+  auth_type: implicit
+  # GitHubのOAuth App ID（後で作成）
+  app_id: あなたのGitHub_OAuth_App_ID
+
+# サイトURL（GitHub Pages URL）
+site_url: https://eito1011-jp.github.io/Handbook
+display_url: https://eito1011-jp.github.io/Handbook
+
+# 編集ワークフローを有効化
+publish_mode: editorial_workflow
+
+media_folder: static/img
+public_folder: /img
+
+# コンテンツコレクション（ドキュメント）の定義
+collections:
+  - name: docs
+    label: Documentation
+    folder: docs
+    create: true
+    slug: "{{slug}}"
+    fields:
+      - {label: "ID", name: "id", widget: "string"}
+      - {label: "Title", name: "title", widget: "string"}
+      - {label: "Sidebar Label", name: "sidebar_label", widget: "string", required: false}
+      - {label: "Body", name: "body", widget: "markdown"}
