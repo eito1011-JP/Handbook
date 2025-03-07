@@ -2,8 +2,8 @@ backend:
   name: github
   repo: eito1011-JP/Handbook
   branch: main
-  base_url: https://eito1011-jp.github.io
-  auth_endpoint: /Handbook/admin/github-oauth-callback.html
+  auth_type: implicit
+  app_id: Ov23liAZfY9EcarUr9jm
 
 # サイトURL
 site_url: https://eito1011-jp.github.io/Handbook
