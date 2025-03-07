@@ -4,23 +4,42 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Content Manager</title>
-    <!-- Netlify Identity Widget -->
-    <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
   </head>
   <body>
-    <!-- Decap CMS -->
     <script src="https://unpkg.com/decap-cms@^3.0.0/dist/decap-cms.js"></script>
     <script>
-      // Netlify Identityの初期化
-      if (window.netlifyIdentity) {
-        window.netlifyIdentity.on("init", user => {
-          if (!user) {
-            window.netlifyIdentity.on("login", () => {
-              document.location.href = "/admin/";
-            });
-          }
-        });
-      }
+      window.CMS_MANUAL_INIT = true;
+      CMS.init({
+        config: {
+          backend: {
+            name: "github",
+            repo: "eito1011-JP/Handbook",
+            branch: "main",
+            auth_type: "implicit",
+            app_id: "Ov23liAZfY9EcarUr9jm"
+          },
+          site_url: "https://eito1011-jp.github.io/Handbook",
+          display_url: "https://eito1011-jp.github.io/Handbook",
+          publish_mode: "editorial_workflow",
+          media_folder: "static/img",
+          public_folder: "/img",
+          collections: [
+            {
+              name: "docs",
+              label: "Documentation",
+              folder: "docs",
+              create: true,
+              slug: "{{slug}}",
+              fields: [
+                {label: "ID", name: "id", widget: "string"},
+                {label: "Title", name: "title", widget: "string"},
+                {label: "Sidebar Label", name: "sidebar_label", widget: "string", required: false},
+                {label: "Body", name: "body", widget: "markdown"}
+              ]
+            }
+          ]
+        }
+      });
     </script>
   </body>
 </html>
