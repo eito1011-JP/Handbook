@@ -1,13 +1,11 @@
 backend:
   name: github
-  repo: eito1011-JP/Handbook  # あなたのGitHubユーザー名/リポジトリ名
-  branch: main  # メインブランチ
-  # GitHub認証を使用
-  auth_type: implicit
-  # GitHubのOAuth App ID（後で作成）
-  app_id: あなたのGitHub_OAuth_App_ID
+  repo: eito1011-JP/Handbook
+  branch: main
+  base_url: https://eito1011-jp.github.io
+  auth_endpoint: /Handbook/admin/github-oauth-callback.html
 
-# サイトURL（GitHub Pages URL）
+# サイトURL
 site_url: https://eito1011-jp.github.io/Handbook
 display_url: https://eito1011-jp.github.io/Handbook
 
