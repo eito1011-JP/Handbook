@@ -4,12 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Content Manager</title>
+    <link rel="stylesheet" href="https://unpkg.com/@staticcms/app@3.3.4/dist/main.css" />
   </head>
   <body>
-    <script src="https://unpkg.com/decap-cms@^3.0.0/dist/decap-cms.js"></script>
+    <div id="nc-root"></div>
+    <script src="https://unpkg.com/@staticcms/app@3.3.4/dist/static-cms-app.js"></script>
     <script>
-      window.CMS_MANUAL_INIT = true;
-      CMS.init({
+      window.CMS.init({
         config: {
           backend: {
             name: "github",
@@ -18,9 +19,6 @@
             auth_type: "implicit",
             app_id: "Ov23liAZfY9EcarUr9jm"
           },
-          site_url: "https://eito1011-jp.github.io/Handbook",
-          display_url: "https://eito1011-jp.github.io/Handbook",
-          publish_mode: "editorial_workflow",
           media_folder: "static/img",
           public_folder: "/img",
           collections: [
@@ -29,11 +27,8 @@
               label: "Documentation",
               folder: "docs",
               create: true,
-              slug: "{{slug}}",
               fields: [
-                {label: "ID", name: "id", widget: "string"},
                 {label: "Title", name: "title", widget: "string"},
-                {label: "Sidebar Label", name: "sidebar_label", widget: "string", required: false},
                 {label: "Body", name: "body", widget: "markdown"}
               ]
             }

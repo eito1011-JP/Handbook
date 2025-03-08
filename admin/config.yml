@@ -1,29 +1,30 @@
-backend:
-  name: github
-  repo: eito1011-JP/Handbook
-  branch: main
-  auth_type: implicit
-  app_id: Ov23liAZfY9EcarUr9jm
+# netlify-cmsのバグで、config.ymlが読み込まれないため、htmlでベタガキ
+# backend:
+#   name: github
+#   repo: eito1011-JP/Handbook
+#   branch: main
+#   auth_type: implicit
+#   app_id: Ov23liAZfY9EcarUr9jm
 
-# サイトURL
-site_url: https://eito1011-jp.github.io/Handbook
-display_url: https://eito1011-jp.github.io/Handbook
+# # サイトURL
+# site_url: https://eito1011-jp.github.io/Handbook
+# display_url: https://eito1011-jp.github.io/Handbook
 
-# 編集ワークフローを有効化
-publish_mode: editorial_workflow
+# # 編集ワークフローを有効化
+# publish_mode: editorial_workflow
 
-media_folder: static/img
-public_folder: /img
+# media_folder: static/img
+# public_folder: /img
 
-# コンテンツコレクション（ドキュメント）の定義
-collections:
-  - name: docs
-    label: Documentation
-    folder: docs
-    create: true
-    slug: "{{slug}}"
-    fields:
-      - {label: "ID", name: "id", widget: "string"}
-      - {label: "Title", name: "title", widget: "string"}
-      - {label: "Sidebar Label", name: "sidebar_label", widget: "string", required: false}
-      - {label: "Body", name: "body", widget: "markdown"}
+# # コンテンツコレクション（ドキュメント）の定義
+# collections:
+#   - name: docs
+#     label: Documentation
+#     folder: docs
+#     create: true
+#     slug: "{{slug}}"
+#     fields:
+#       - {label: "ID", name: "id", widget: "string"}
+#       - {label: "Title", name: "title", widget: "string"}
+#       - {label: "Sidebar Label", name: "sidebar_label", widget: "string", required: false}
+#       - {label: "Body", name: "body", widget: "markdown"}
