@@ -3,51 +3,90 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Content Manager</title>
+    <title>Handbook コンテンツ管理</title>
+    <!-- Pages CMS スタイルシート -->
+    <link rel="stylesheet" href="https://unpkg.com/@pages-cms/ui/dist/pages-cms.css" />
+    <!-- カスタムスタイル（オプション） -->
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      }
+      .pages-cms-branding {
+        background-color: #2e8555; /* Docusaurusのデフォルトカラー */
+      }
+    </style>
   </head>
   <body>
-    <script src="https://unpkg.com/netlify-cms@2.10.192/dist/netlify-cms.js"></script>
+    <!-- Pages CMS マウントポイント -->
+    <div id="pages-cms-root"></div>
+
+    <!-- Pages CMS スクリプト -->
+    <script src="https://unpkg.com/@pages-cms/ui/dist/pages-cms.js"></script>
     <script>
-      // 初期化前に設定を強制的にオーバーライド
-      window.CMS_MANUAL_INIT = true;
-      
-      // 完全なインライン設定
-      const config = {
-        backend: {
-          name: "github",
-          repo: "eito1011-JP/Handbook",
-          branch: "main",
-          // GitHub認証の最も基本的な設定
-          auth_type: "implicit",
-          app_id: "Ov23liAZfY9EcarUr9jm"
+      // Pages CMS 設定
+      window.PagesCMS = {
+        // 基本設定
+        site: {
+          title: 'Handbook 管理システム',
+          logo: '/img/logo.png'
         },
-        // URLはホスト名で自動判別
-        site_url: window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://eito1011-jp.github.io/Handbook',
-        display_url: window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://eito1011-jp.github.io/Handbook',
         
-        publish_mode: "editorial_workflow",
-        media_folder: "static/img",
-        public_folder: "/img",
-        
-        collections: [
-          {
-            name: "docs",
-            label: "Documentation",
-            folder: "docs",
-            create: true,
-            slug: "{{slug}}",
-            fields: [
-              {label: "ID", name: "id", widget: "string"},
-              {label: "Title", name: "title", widget: "string"},
-              {label: "Sidebar Label", name: "sidebar_label", widget: "string", required: false},
-              {label: "Body", name: "body", widget: "markdown"}
-            ]
+        // GitHub設定
+        github: {
+          repo: 'eito1011-JP/Handbook',
+          branch: 'main',
+          // OAuth設定
+          auth: {
+            type: 'implicit',
+            clientId: 'Ov23liAZfY9EcarUr9jm'
           }
-        ]
+        },
+        
+        // コンテンツパス設定
+        content: {
+          basePath: '',
+          collections: [
+            {
+              name: 'docs',
+              label: 'ドキュメント',
+              path: 'docs',
+              create: true,
+              fields: [
+                {name: 'id', label: 'ID', widget: 'string', required: true},
+                {name: 'title', label: 'タイトル', widget: 'string', required: true},
+                {name: 'sidebar_label', label: 'サイドバーラベル', widget: 'string', required: false},
+                {name: 'sidebar_position', label: 'サイドバー位置', widget: 'number', required: false},
+                {name: 'description', label: '説明', widget: 'text', required: false},
+                {name: 'tags', label: 'タグ', widget: 'list', required: false},
+                {name: 'body', label: '本文', widget: 'markdown', required: true}
+              ]
+            }
+          ]
+        },
+        
+        // メディア設定
+        media: {
+          folder: 'static/img',
+          publicPath: '/img'
+        },
+        
+        // UI設定
+        ui: {
+          lang: 'ja',
+          theme: 'light'
+        },
+        
+        // ワークフロー設定
+        workflow: {
+          editorial: true,
+          branchPrefix: 'cms-edit'
+        }
       };
       
-      // 初期化
-      CMS.init({ config });
+      // Pages CMS 初期化
+      document.addEventListener('DOMContentLoaded', function() {
+        PagesCMS.init();
+      });
     </script>
   </body>
 </html>
