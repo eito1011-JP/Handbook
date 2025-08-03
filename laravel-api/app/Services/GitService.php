@@ -74,7 +74,7 @@ class GitService
     /**
      * コミットを作成
      */
-    public function createCommit(string $message, string $treeSha, array $parents): array
+    public function createCommit(string $message, string $treeSha, array $parents, bool $autoMerge = false): array
     {
         $url = "https://api.github.com/repos/{$this->githubOwner}/{$this->githubRepo}/git/commits";
 
@@ -178,16 +178,23 @@ class GitService
     /**
      * プルリクエストをマージ
      */
-    public function mergePullRequest(int $prNumber, string $mergeMethod = 'merge'): array
+    public function mergePullRequest(int $prNumber, string $mergeMethod = 'merge', bool $updateBranch = true): array
     {
         $url = "https://api.github.com/repos/{$this->githubOwner}/{$this->githubRepo}/pulls/{$prNumber}/merge";
+
+        $requestData = [
+            'merge_method' => $mergeMethod,
+        ];
+        
+        // GitHub Enterprise Server以外の場合はupdate_branchパラメータを追加
+        if ($updateBranch) {
+            $requestData['update_branch'] = true;
+        }
 
         $response = Http::withHeaders([
             'Authorization' => "token {$this->githubToken}",
             'Accept' => 'application/vnd.github.v3+json',
-        ])->put($url, [
-            'merge_method' => $mergeMethod,
-        ]);
+        ])->put($url, $requestData);
 
         if (! $response->successful()) {
             Log::error('GitHub API Error - Merge Pull Request: '.$response->body());
@@ -219,8 +226,9 @@ class GitService
         $data = $response->json();
 
         return [
-            'mergeable' => $data['mergeable'],
-            'mergeable_state' => $data['mergeable_state'],
+            'mergeable' => $data['mergeable'] ?? null,
+            'mergeable_state' => $data['mergeable_state'] ?? 'unknown',
+            'rebaseable' => $data['rebaseable'] ?? null,
         ];
     }
 
@@ -245,5 +253,168 @@ class GitService
         }
 
         return $response->json();
+    }
+
+    /**
+     * ブランチの参照情報を取得
+     */
+    public function getBranchReference(string $branchName): array
+    {
+        $url = "https://api.github.com/repos/{$this->githubOwner}/{$this->githubRepo}/git/refs/heads/{$branchName}";
+
+        $response = Http::withHeaders([
+            'Authorization' => "token {$this->githubToken}",
+            'Accept' => 'application/vnd.github.v3+json',
+        ])->get($url);
+
+        if (! $response->successful()) {
+            Log::error('GitHub API Error - Get Branch Reference: '.$response->body());
+
+            throw new \Exception('ブランチ参照の取得に失敗しました');
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * マージコミットを作成
+     */
+    public function createMergeCommit(string $message, string $baseSha, string $headSha): array
+    {
+        // まず、両方のブランチのコミット情報を取得
+        $baseCommit = $this->getCommit($baseSha);
+        $headCommit = $this->getCommit($headSha);
+        
+        // マージされたツリーSHAを使用（通常はheadのツリーを使用）
+        $mergedTreeSha = $headCommit['tree']['sha'];
+        
+        $url = "https://api.github.com/repos/{$this->githubOwner}/{$this->githubRepo}/git/commits";
+
+        $response = Http::withHeaders([
+            'Authorization' => "token {$this->githubToken}",
+            'Accept' => 'application/vnd.github.v3+json',
+        ])->post($url, [
+            'message' => $message,
+            'tree' => $mergedTreeSha,
+            'parents' => [$baseSha, $headSha],
+        ]);
+
+        if (! $response->successful()) {
+            Log::error('GitHub API Error - Create Merge Commit: '.$response->body());
+
+            throw new \Exception('マージコミットの作成に失敗しました');
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * コミット情報を取得
+     */
+    public function getCommit(string $sha): array
+    {
+        $url = "https://api.github.com/repos/{$this->githubOwner}/{$this->githubRepo}/git/commits/{$sha}";
+
+        $response = Http::withHeaders([
+            'Authorization' => "token {$this->githubToken}",
+            'Accept' => 'application/vnd.github.v3+json',
+        ])->get($url);
+
+        if (! $response->successful()) {
+            Log::error('GitHub API Error - Get Commit: '.$response->body());
+
+            throw new \Exception('コミット情報の取得に失敗しました');
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * プルリクエストブランチを最新状態に更新
+     */
+    public function updatePullRequestBranch(int $prNumber): array
+    {
+        $url = "https://api.github.com/repos/{$this->githubOwner}/{$this->githubRepo}/pulls/{$prNumber}/update-branch";
+
+        // expected_head_shaパラメータを送信しない（空のボディ）
+        $response = Http::withHeaders([
+            'Authorization' => "token {$this->githubToken}",
+            'Accept' => 'application/vnd.github.v3+json',
+        ])->put($url);
+
+        if (! $response->successful()) {
+            $responseBody = $response->body();
+            Log::error('GitHub API Error - Update PR Branch: '.$responseBody);
+            
+            // すでに最新の場合は例外を投げない
+            $responseData = json_decode($responseBody, true);
+            if (isset($responseData['message'])) {
+                $message = $responseData['message'];
+                if (strpos($message, 'merge conflict') !== false ||
+                    strpos($message, 'conflicts') !== false) {
+                    throw new \Exception('マージコンフリクトが発生しました');
+                }
+                if (strpos($message, 'up to date') !== false ||
+                    strpos($message, 'already up-to-date') !== false ||
+                    strpos($message, 'already current') !== false) {
+                    return ['message' => 'Already up to date'];
+                }
+            }
+
+            throw new \Exception('プルリクエストブランチの更新に失敗しました: ' . $responseBody);
+        }
+
+        $result = $response->json();
+        
+        // レスポンスがnullの場合のフォールバック
+        if ($result === null) {
+            return ['message' => 'Branch updated'];
+        }
+
+        return $result;
+    }
+
+    /**
+     * ブランチをbaseブランチにマージ（upstream sync）
+     */
+    public function mergeUpstream(string $headBranch, string $baseBranch = 'main'): array
+    {
+        $url = "https://api.github.com/repos/{$this->githubOwner}/{$this->githubRepo}/merges";
+
+        $response = Http::withHeaders([
+            'Authorization' => "token {$this->githubToken}",
+            'Accept' => 'application/vnd.github.v3+json',
+        ])->post($url, [
+            'base' => $headBranch,     // マージ先（PRブランチ）
+            'head' => $baseBranch,     // マージ元（mainブランチ）
+            'commit_message' => "Merge {$baseBranch} into {$headBranch}",
+        ]);
+
+        if (! $response->successful()) {
+            $responseBody = $response->body();
+            Log::error('GitHub API Error - Merge Upstream: '.$responseBody);
+            
+            // すでに最新の場合は例外を投げない
+            $responseData = json_decode($responseBody, true);
+            if (isset($responseData['message'])) {
+                $message = $responseData['message'];
+                if (strpos($message, 'Nothing to merge') !== false || 
+                    strpos($message, 'already up-to-date') !== false ||
+                    strpos($message, 'up to date') !== false) {
+                    return ['message' => 'Already up to date'];
+                }
+            }
+
+            throw new \Exception('アップストリームマージに失敗しました: ' . $responseBody);
+        }
+
+        $result = $response->json();
+        
+        // レスポンスがnullの場合のフォールバック
+        if ($result === null) {
+            return ['message' => 'Merge completed'];
+        }
+
+        return $result;
     }
 }

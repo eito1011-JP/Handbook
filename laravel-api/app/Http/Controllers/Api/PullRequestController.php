@@ -10,6 +10,7 @@ use App\Enums\PullRequestActivityAction;
 use App\Enums\PullRequestReviewerActionStatus;
 use App\Enums\PullRequestStatus;
 use App\Enums\UserRole;
+use App\Enums\FixRequestStatus;
 use App\Http\Requests\Api\PullRequest\ApprovePullRequestRequest;
 use App\Http\Requests\Api\PullRequest\ClosePullRequestRequest;
 use App\Http\Requests\Api\PullRequest\DetectConflictRequest;
@@ -23,6 +24,7 @@ use App\Models\ActivityLogOnPullRequest;
 use App\Models\DocumentCategory;
 use App\Models\DocumentVersion;
 use App\Models\PullRequest;
+use App\Models\PullRequestEditSession;
 use App\Models\PullRequestReviewer;
 use App\Models\User;
 use App\Services\CategoryFolderService;
@@ -432,7 +434,7 @@ class PullRequestController extends ApiBaseController
         DB::beginTransaction();
 
         try {
-            // 1. 認証ユーザーか確認
+            // 1. ログイン認証
             $user = $this->getUserFromSession();
 
             if (! $user) {
@@ -449,15 +451,147 @@ class PullRequestController extends ApiBaseController
             }
 
             // 3. プルリクエストを取得（status = opened）
-            $pullRequest = PullRequest::with('userBranch')
+            $pullRequest = PullRequest::with(['userBranch', 'pullRequestEditSessions.editSessionDiffs', 'fixRequests'])
                 ->where('id', $request->pull_request_id)
                 ->where('status', PullRequestStatus::OPENED->value)
                 ->firstOrFail();
 
-            // 4. GitHub APIでプルリクエストをマージ
-            $mergeResult = $this->gitService->mergePullRequest($pullRequest->pr_number);
+            // 4. PR提出時から差分が変わっているかをチェック
+            $pullRequestEditSession = $pullRequest->pullRequestEditSessions()
+                ->whereNotNull('finished_at')
+                ->first();
 
-            // 5. プルリクエストに紐づくuser_branchesテーブルを取得し、
+            $appliedFixRequest = $pullRequest->fixRequests()
+                ->where('status', FixRequestStatus::APPLIED->value)
+                ->first();
+
+            // 5. PR提出時と差分が変わっていない場合
+            if (!$pullRequestEditSession && !$appliedFixRequest) {
+                // GitHub APIでプルリクエストをマージ
+                $this->gitService->mergePullRequest($pullRequest->pr_number);
+            } else {
+                // 6. PR提出時から差分が変更されている場合
+                
+                // 6-1. プルリクエストに紐づくdocument_versionsとdocument_categoriesを取得
+                $userBranch = $pullRequest->userBranch;
+                $documentVersions = $userBranch->documentVersions()->get();
+                $documentCategories = $userBranch->documentCategories()->get();
+
+                // 6-2. applied fix requestのversion_idを取得
+                $appliedDocumentVersionIds = [];
+                $appliedCategoryVersionIds = [];
+                if ($appliedFixRequest) {
+                    $allAppliedFixRequests = $pullRequest->fixRequests()
+                        ->where('status', FixRequestStatus::APPLIED->value)
+                        ->get();
+                    
+                    $appliedDocumentVersionIds = $allAppliedFixRequests->pluck('document_version_id')->filter()->toArray();
+                    $appliedCategoryVersionIds = $allAppliedFixRequests->pluck('document_category_id')->filter()->toArray();
+                }
+
+                // 6-3. 再編集されたdocumentとcategoryのidを取得
+                $reEditDocumentVersionsIds = [];
+                $reEditCategoryVersionsIds = [];
+                if ($pullRequestEditSession) {
+                    $pullRequestEditSessionDiffs = $pullRequestEditSession->editSessionDiffs;
+                    
+                    $reEditDocumentVersionsIds = $pullRequestEditSessionDiffs
+                        ->where('target_type', 'document')
+                        ->pluck('current_version_id')
+                        ->filter()
+                        ->toArray();
+                    
+                    $reEditCategoryVersionsIds = $pullRequestEditSessionDiffs
+                        ->where('target_type', 'category')
+                        ->pluck('current_version_id')
+                        ->filter()
+                        ->toArray();
+                }
+
+                // 6-4. 新しいバージョンIDをマージ
+                $newDocumentVersionIds = array_merge($appliedDocumentVersionIds, $reEditDocumentVersionsIds);
+                $newCategoryVersionIds = array_merge($appliedCategoryVersionIds, $reEditCategoryVersionsIds);
+
+                // 6-5. 対象のdocumentVersionsとcategoryVersionsを取得
+                $targetDocumentVersions = $documentVersions->whereIn('id', $newDocumentVersionIds);
+                $targetCategoryVersions = $documentCategories->whereIn('id', $newCategoryVersionIds);
+
+                $treeItems = [];
+
+                // 6-6. documentVersionsを処理
+                foreach ($targetDocumentVersions as $documentVersion) {
+                    $markdownContent = $this->mdFileService->createMdFileContent($documentVersion);
+                    $filePath = $this->mdFileService->generateFilePath($documentVersion->slug, $documentVersion->category_path);
+                    
+                    $treeItems[] = [
+                        'path' => $filePath,
+                        'mode' => '100644',
+                        'type' => 'blob',
+                        'content' => $markdownContent,
+                    ];
+                }
+
+                // 6-7. categoryVersionsを処理
+                foreach ($targetCategoryVersions as $documentCategory) {
+                    $categoryJsonData = [
+                        'label' => $documentCategory->sidebar_label,
+                        'position' => $documentCategory->position,
+                        'link' => [
+                            'type' => 'generated-index',
+                            'description' => $documentCategory->description,
+                        ],
+                    ];
+                    
+                    $categoryJsonContent = json_encode($categoryJsonData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                    
+                    $categoryFolderPath = $this->categoryFolderService->generateCategoryFilePath(
+                        $documentCategory->slug, 
+                        $documentCategory->parent_id && $documentCategory->parent_id !== DocumentCategoryConstants::DEFAULT_CATEGORY_ID 
+                            ? $documentCategory->parent_id 
+                            : null
+                    );
+                    
+                    // _category_.jsonファイルを作成
+                    $treeItems[] = [
+                        'path' => $categoryFolderPath.'/_category_.json',
+                        'mode' => '100644',
+                        'type' => 'blob',
+                        'content' => $categoryJsonContent,
+                    ];
+                    
+                    // .gitkeepファイルを作成（空のフォルダをGitで追跡するため）
+                    $treeItems[] = [
+                        'path' => $categoryFolderPath.'/.gitkeep',
+                        'mode' => '100644',
+                        'type' => 'blob',
+                        'content' => '',
+                    ];
+                }
+
+                // 6-8. treeを作成して、リモートブランチのファイルを編集
+                $treeResult = $this->gitService->createTree(
+                    $userBranch->snapshot_commit,
+                    $treeItems
+                );
+
+                // 6-9. コミット作成
+                $commitResult = $this->gitService->createCommit(
+                    $pullRequest->title,
+                    $treeResult['sha'],
+                    [$userBranch->snapshot_commit]
+                );
+
+                // 6-10. ブランチの最新コミットを更新
+                $this->gitService->updateBranchReference(
+                    $userBranch->branch_name,
+                    $commitResult['sha']
+                );
+
+                // GitHub APIでプルリクエストをマージ
+                $this->gitService->mergePullRequest($pullRequest->pr_number);
+            }
+
+            // 7. プルリクエストに紐づくuser_branchesテーブルを取得し、
             // それに紐づくdocument_versionsとdocument_categoriesのstatusをmergedにupdate
             $userBranch = $pullRequest->userBranch;
 
@@ -471,12 +605,12 @@ class PullRequestController extends ApiBaseController
                 'status' => DocumentCategoryStatus::MERGED->value,
             ]);
 
-            // 6. pull_requestsテーブルのstatusをmergedにupdate
+            // 8. pull_requestsテーブルのstatusをmergedにupdate
             $pullRequest->update([
                 'status' => PullRequestStatus::MERGED->value,
             ]);
 
-            // 7. ActivityLogを作成
+            // 9. ActivityLogを作成
             ActivityLogOnPullRequest::create([
                 'user_id' => $user->id,
                 'pull_request_id' => $pullRequest->id,
@@ -718,6 +852,7 @@ class PullRequestController extends ApiBaseController
                     ] : null,
                     'old_pull_request_title' => $log->old_pull_request_title,
                     'new_pull_request_title' => $log->new_pull_request_title,
+                    'fix_request_token' => $log->fix_request_token,
                     'created_at' => $log->created_at->toISOString(),
                 ];
             });
