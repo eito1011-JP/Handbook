@@ -3,6 +3,8 @@ slug: eito-test
 category: 未分類
 sidebar_label: これはテストです
 file_order: 1
+draft: false
 last_edited_by: test@gmail.com
 ---
-## テストとして書いたものを修正あああああした後に再度修正しました
+## テストっっっっっっっっd
+# テストです
