@@ -1,0 +1,8 @@
+{
+    "label": "first category title",
+    "position": 1,
+    "link": {
+        "type": "generated-index",
+        "description": "これは最初のカテゴリ"
+    }
+}
