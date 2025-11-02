@@ -1,7 +1,7 @@
 ---
 slug: eito-morohashi
 category: 日本国憲法
-sidebar_label: 私の自己消化い
+sidebar_label: 私の自己消化dfさfじぇsこfjどksfじょks
 file_order: 1
 draft: true
 last_reviewed_by: eito-morohashi@nexis-inc.com
@@ -18,7 +18,7 @@ last_edited_by: eito.55855@gmail.com
 ### 特技
 
 *   テニス
-    
+    fdsfdさfsfds
 *   野球
     
 *   水泳
