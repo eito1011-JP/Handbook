@@ -1,8 +1,9 @@
 ---
 slug: this-is-test
 category: 未分類
-sidebar_label: test
+sidebar_label: テストとして書いています
 file_order: 1
-last_edited_by: test@gmail.com
+draft: false
+last_edited_by: eito.55855@gmail.com
 ---
-testです
+テストとして書いています
